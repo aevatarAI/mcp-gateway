@@ -6,6 +6,7 @@ using k8s.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.McpGateway.Management.Contracts;
 using Microsoft.McpGateway.Management.Deployment;
+using Microsoft.McpGateway.Management.Configuration;
 using Moq;
 
 namespace Microsoft.McpGateway.Management.Tests
@@ -21,7 +22,17 @@ namespace Microsoft.McpGateway.Management.Tests
         {
             _kubeClientMock = new Mock<IKubeClientWrapper>();
             _loggerMock = new Mock<ILogger<KubernetesAdapterDeploymentManager>>();
-            _manager = new KubernetesAdapterDeploymentManager("registry.io", _kubeClientMock.Object, _loggerMock.Object);
+            
+            var containerRegistrySettings = new ContainerRegistrySettings { Endpoint = "registry.io" };
+            var kubernetesSettings = new KubernetesSettings();
+            var serviceSettings = new ServiceSettings();
+            
+            _manager = new KubernetesAdapterDeploymentManager(
+                containerRegistrySettings, 
+                kubernetesSettings, 
+                serviceSettings, 
+                _kubeClientMock.Object, 
+                _loggerMock.Object);
         }
 
         [TestMethod]

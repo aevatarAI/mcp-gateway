@@ -12,6 +12,7 @@ using Microsoft.McpGateway.Management.Service;
 using Microsoft.McpGateway.Management.Store;
 using Microsoft.McpGateway.Service.Routing;
 using Microsoft.McpGateway.Service.Session;
+using Microsoft.McpGateway.Management.Configuration;
 using ModelContextProtocol.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -51,34 +52,41 @@ else
 
     builder.Services.AddSingleton<IAdapterResourceStore>(c =>
     {
-        var config = builder.Configuration.GetSection("CosmosSettings");
-        var connectionString = config["ConnectionString"];
-        var client = string.IsNullOrEmpty(connectionString) ? new CosmosClient(config["AccountEndpoint"], credential) : new CosmosClient(connectionString);
-        return new CosmosAdapterResourceStore(client, config["DatabaseName"]!, "AdapterContainer", c.GetRequiredService<ILogger<CosmosAdapterResourceStore>>());
+        var cosmosSettings = builder.Configuration.GetSection("CosmosSettings").Get<CosmosSettings>() ?? new CosmosSettings();
+        var connectionString = cosmosSettings.ConnectionString;
+        var client = string.IsNullOrEmpty(connectionString) ? new CosmosClient(cosmosSettings.AccountEndpoint, credential) : new CosmosClient(connectionString);
+        return new CosmosAdapterResourceStore(client, cosmosSettings.DatabaseName, cosmosSettings.AdapterContainerName, c.GetRequiredService<ILogger<CosmosAdapterResourceStore>>());
     });
     builder.Services.AddCosmosCache(options =>
     {
-        var config = builder.Configuration.GetSection("CosmosSettings");
-        var endpoint = config["AccountEndpoint"];
-        var connectionString = config["ConnectionString"];
+        var cosmosSettings = builder.Configuration.GetSection("CosmosSettings").Get<CosmosSettings>() ?? new CosmosSettings();
 
-        options.ContainerName = "CacheContainer";
-        options.DatabaseName = config["DatabaseName"]!;
+        options.ContainerName = cosmosSettings.CacheContainerName;
+        options.DatabaseName = cosmosSettings.DatabaseName;
         options.CreateIfNotExists = true;
 
-        options.ClientBuilder = string.IsNullOrEmpty(connectionString) ? new CosmosClientBuilder(endpoint, credential) : new CosmosClientBuilder(connectionString);
+        options.ClientBuilder = string.IsNullOrEmpty(cosmosSettings.ConnectionString) ? new CosmosClientBuilder(cosmosSettings.AccountEndpoint, credential) : new CosmosClientBuilder(cosmosSettings.ConnectionString);
     });
 }
 
 builder.Services.AddSingleton<IKubeClientWrapper>(c =>
 {
     var kubeClientFactory = c.GetRequiredService<IKubernetesClientFactory>();
-    return new KubeClient(kubeClientFactory, "adapter");
+    var kubernetesSettings = builder.Configuration.GetSection("KubernetesSettings").Get<KubernetesSettings>() ?? new KubernetesSettings();
+    return new KubeClient(kubeClientFactory, kubernetesSettings.Namespace);
 });
 builder.Services.AddSingleton<IAdapterDeploymentManager>(c =>
 {
-    var config = builder.Configuration.GetSection("ContainerRegistrySettings");
-    return new KubernetesAdapterDeploymentManager(config["Endpoint"]!, c.GetRequiredService<IKubeClientWrapper>(), c.GetRequiredService<ILogger<KubernetesAdapterDeploymentManager>>());
+    var containerRegistrySettings = builder.Configuration.GetSection("ContainerRegistrySettings").Get<ContainerRegistrySettings>() ?? new ContainerRegistrySettings();
+    var kubernetesSettings = builder.Configuration.GetSection("KubernetesSettings").Get<KubernetesSettings>() ?? new KubernetesSettings();
+    var serviceSettings = builder.Configuration.GetSection("ServiceSettings").Get<ServiceSettings>() ?? new ServiceSettings();
+    
+    return new KubernetesAdapterDeploymentManager(
+        containerRegistrySettings, 
+        kubernetesSettings, 
+        serviceSettings, 
+        c.GetRequiredService<IKubeClientWrapper>(), 
+        c.GetRequiredService<ILogger<KubernetesAdapterDeploymentManager>>());
 });
 builder.Services.AddSingleton<IAdapterManagementService, AdapterManagementService>();
 builder.Services.AddSingleton<IAdapterRichResultProvider, AdapterRichResultProvider>();
@@ -89,7 +97,8 @@ builder.Services.AddHttpClient();
 
 builder.WebHost.ConfigureKestrel(options =>
 {
-    options.ListenAnyIP(8000);
+    var serviceSettings = builder.Configuration.GetSection("ServiceSettings").Get<ServiceSettings>() ?? new ServiceSettings();
+    options.ListenAnyIP(serviceSettings.Port);
 });
 
 var app = builder.Build();

@@ -8,31 +8,41 @@ using k8s.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.McpGateway.Management.Contracts;
 using Microsoft.McpGateway.Management.Extensions;
+using Microsoft.McpGateway.Management.Configuration;
 
 namespace Microsoft.McpGateway.Management.Deployment
 {
     public class KubernetesAdapterDeploymentManager : IAdapterDeploymentManager
     {
-        private const string AdapterNamespace = "adapter";
         private readonly IKubeClientWrapper _kubeClient;
-        private readonly string _containerRegistryAddress;
+        private readonly ContainerRegistrySettings _containerRegistrySettings;
+        private readonly KubernetesSettings _kubernetesSettings;
+        private readonly ServiceSettings _serviceSettings;
         private readonly ILogger<KubernetesAdapterDeploymentManager> _logger;
 
-        public KubernetesAdapterDeploymentManager(string containerRegistryAddress, IKubeClientWrapper kubeClient, ILogger<KubernetesAdapterDeploymentManager> logger)
+        public KubernetesAdapterDeploymentManager(
+            ContainerRegistrySettings containerRegistrySettings, 
+            KubernetesSettings kubernetesSettings,
+            ServiceSettings serviceSettings,
+            IKubeClientWrapper kubeClient, 
+            ILogger<KubernetesAdapterDeploymentManager> logger)
         {
-            ArgumentException.ThrowIfNullOrEmpty(containerRegistryAddress);
-
-            _containerRegistryAddress = containerRegistryAddress;
+            _containerRegistrySettings = containerRegistrySettings ?? throw new ArgumentNullException(nameof(containerRegistrySettings));
+            _kubernetesSettings = kubernetesSettings ?? throw new ArgumentNullException(nameof(kubernetesSettings));
+            _serviceSettings = serviceSettings ?? throw new ArgumentNullException(nameof(serviceSettings));
             _kubeClient = kubeClient ?? throw new ArgumentNullException(nameof(kubeClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+            ArgumentException.ThrowIfNullOrEmpty(containerRegistrySettings.Endpoint);
+            ArgumentException.ThrowIfNullOrEmpty(kubernetesSettings.Namespace);
         }
 
         public async Task CreateDeploymentAsync(AdapterData request, CancellationToken cancellationToken)
         {
             var labels = new Dictionary<string, string>
             {
-                { $"{AdapterNamespace}/type", "mcp" },
-                { $"{AdapterNamespace}/name", request.Name }
+                { $"{_kubernetesSettings.LabelPrefix}/type", "mcp" },
+                { $"{_kubernetesSettings.LabelPrefix}/name", request.Name }
             };
 
             var statefulSet = new V1StatefulSet
@@ -50,43 +60,43 @@ namespace Microsoft.McpGateway.Management.Deployment
                         {
                             SecurityContext = new V1PodSecurityContext
                             {
-                                RunAsUser = 1100,
-                                RunAsGroup = 1100
+                                RunAsUser = _kubernetesSettings.SecurityContext.RunAsUser,
+                                RunAsGroup = _kubernetesSettings.SecurityContext.RunAsGroup
                             },
                             Containers =
                             [
                                 new()
                                 {
                                     Name = $"{request.Name}-container",
-                                    Image = $"{_containerRegistryAddress}/{request.ImageName}:{request.ImageVersion}",
-                                    ImagePullPolicy = "Always",
+                                    Image = $"{_containerRegistrySettings.Endpoint}/{request.ImageName}:{request.ImageVersion}",
+                                    ImagePullPolicy = _containerRegistrySettings.ImagePullPolicy,
                                     Env = [.. request.EnvironmentVariables?.Select(x => new V1EnvVar{ Name = x.Key, Value = x.Value }) ?? []],
                                     Ports =
                                     [
                                         new V1ContainerPort
                                         {
-                                            ContainerPort = 8000,
-                                            Protocol = "TCP"
+                                            ContainerPort = _serviceSettings.AdapterPort,
+                                            Protocol = _serviceSettings.Protocol
                                         }
                                     ],
                                     SecurityContext = new V1SecurityContext
                                     {
-                                        AllowPrivilegeEscalation = false,
-                                        ReadOnlyRootFilesystem = true,
-                                        Capabilities = new V1Capabilities { Drop = ["ALL"] }
+                                        AllowPrivilegeEscalation = _kubernetesSettings.SecurityContext.AllowPrivilegeEscalation,
+                                        ReadOnlyRootFilesystem = _kubernetesSettings.SecurityContext.ReadOnlyRootFilesystem,
+                                        Capabilities = new V1Capabilities { Drop = _kubernetesSettings.SecurityContext.DropCapabilities }
                                     },
                                     Resources = new V1ResourceRequirements
                                     {
                                         Limits = new Dictionary<string, ResourceQuantity>
                                         {
-                                            ["cpu"] = new ResourceQuantity("1"),
-                                            ["memory"] = new ResourceQuantity("512Mi"),
-                                            ["ephemeral-storage"] = new ResourceQuantity("2Gi")
+                                            ["cpu"] = new ResourceQuantity(_kubernetesSettings.Resources.Limits.Cpu),
+                                            ["memory"] = new ResourceQuantity(_kubernetesSettings.Resources.Limits.Memory),
+                                            ["ephemeral-storage"] = new ResourceQuantity(_kubernetesSettings.Resources.Limits.EphemeralStorage)
                                         },
                                         Requests = new Dictionary<string, ResourceQuantity>
                                         {
-                                            ["cpu"] = new ResourceQuantity("250m"),
-                                            ["memory"] = new ResourceQuantity("256Mi")
+                                            ["cpu"] = new ResourceQuantity(_kubernetesSettings.Resources.Requests.Cpu),
+                                            ["memory"] = new ResourceQuantity(_kubernetesSettings.Resources.Requests.Memory)
                                         }
                                     }
                                 }
@@ -110,9 +120,9 @@ namespace Microsoft.McpGateway.Management.Deployment
                     [
                         new()
                         {
-                            Port = 8000,
-                            TargetPort = 8000,
-                            Protocol = "TCP"
+                            Port = _serviceSettings.AdapterPort,
+                            TargetPort = _serviceSettings.AdapterPort,
+                            Protocol = _serviceSettings.Protocol
                         }
                     ]
                 }
@@ -121,7 +131,7 @@ namespace Microsoft.McpGateway.Management.Deployment
             _logger.LogInformation("Creating deployment for {name}.", request.Name.Sanitize());
             try
             {
-                await _kubeClient.UpsertStatefulSetAsync(statefulSet, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+                await _kubeClient.UpsertStatefulSetAsync(statefulSet, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Submitted Kubernetes deployment for {name}.", request.Name.Sanitize());
             }
             catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.Conflict)
@@ -131,7 +141,7 @@ namespace Microsoft.McpGateway.Management.Deployment
 
             try
             {
-                await _kubeClient.UpsertServiceAsync(service, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+                await _kubeClient.UpsertServiceAsync(service, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Submitted Kubernetes service for {name}.", request.Name.Sanitize());
             }
             catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.Conflict)
@@ -142,7 +152,7 @@ namespace Microsoft.McpGateway.Management.Deployment
 
         public async Task UpdateDeploymentAsync(AdapterData request, CancellationToken cancellationToken)
         {
-            var statefulSet = await _kubeClient.ReadStatefulSetAsync(request.Name, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+            var statefulSet = await _kubeClient.ReadStatefulSetAsync(request.Name, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
             var patch = new
             {
                 spec = new
@@ -157,7 +167,7 @@ namespace Microsoft.McpGateway.Management.Deployment
                                 new
                                 {
                                     name = $"{request.Name}-container",
-                                    image = $"{_containerRegistryAddress}/{request.ImageName}:{request.ImageVersion}",
+                                    image = $"{_containerRegistrySettings.Endpoint}/{request.ImageName}:{request.ImageVersion}",
                                     env = request.EnvironmentVariables.Select(x => new V1EnvVar{ Name = x.Key, Value = x.Value }).ToArray(),
                                 }
                             }
@@ -168,7 +178,7 @@ namespace Microsoft.McpGateway.Management.Deployment
 
             var patchContent = new V1Patch(JsonSerializer.Serialize(patch), V1Patch.PatchType.StrategicMergePatch);
             _logger.LogInformation("Updating deployment for {name}.", request.Name.Sanitize());
-            await _kubeClient.PatchStatefulSetAsync(patchContent, request.Name, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+            await _kubeClient.PatchStatefulSetAsync(patchContent, request.Name, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
             _logger.LogInformation("Submitted updating deployment for {name}.", request.Name.Sanitize());
         }
 
@@ -177,9 +187,9 @@ namespace Microsoft.McpGateway.Management.Deployment
             try
             {
                 _logger.LogInformation("Deleting deployment for {name}.", name.Sanitize());
-                await _kubeClient.DeleteStatefulSetAsync(name, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+                await _kubeClient.DeleteStatefulSetAsync(name, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Submitted deleting deployment for {name}.", name.Sanitize());
-                await _kubeClient.DeleteServiceAsync($"{name}-service", AdapterNamespace, cancellationToken).ConfigureAwait(false);
+                await _kubeClient.DeleteServiceAsync($"{name}-service", _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
                 _logger.LogInformation("Submitted deleting service for {name}.", name.Sanitize());
             }
             catch (HttpOperationException ex) when (ex.Response.StatusCode == HttpStatusCode.NotFound)
@@ -190,7 +200,7 @@ namespace Microsoft.McpGateway.Management.Deployment
 
         public async Task<AdapterStatus> GetDeploymentStatusAsync(string name, CancellationToken cancellationToken)
         {
-            var statefulSet = await _kubeClient.ReadStatefulSetAsync(name, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+            var statefulSet = await _kubeClient.ReadStatefulSetAsync(name, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
             var status = new AdapterStatus
             {
                 ReadyReplicas = statefulSet.Status.ReadyReplicas,
@@ -210,7 +220,7 @@ namespace Microsoft.McpGateway.Management.Deployment
         public async Task<string> GetDeploymentLogsAsync(string name, int ordinal = 0, CancellationToken cancellationToken = default)
         {
             var podName = $"{name}-{ordinal}";
-            using var logStream = await _kubeClient.GetContainerLogStream(podName, 1000, AdapterNamespace, cancellationToken).ConfigureAwait(false);
+            using var logStream = await _kubeClient.GetContainerLogStream(podName, 1000, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
             using var reader = new StreamReader(logStream);
             var logText = await reader.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
             return logText;
