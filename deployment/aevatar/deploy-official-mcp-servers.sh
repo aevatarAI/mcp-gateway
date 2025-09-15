@@ -5,8 +5,8 @@
 
 set -e
 
-# Configuration
-GATEWAY_URL="http://localhost:8000"
+# Default configuration
+DEFAULT_GATEWAY_URL="http://localhost:8000"
 REGISTRY="docker.io"  # Docker Hub registry
 
 # Colors for output
@@ -26,6 +26,94 @@ print_warning() {
 
 print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Function to show usage information
+show_usage() {
+    echo "Usage: $0 [OPTIONS] [GATEWAY_URL]"
+    echo ""
+    echo "Deploy official MCP servers to the specified MCP Gateway."
+    echo ""
+    echo "OPTIONS:"
+    echo "  -h, --help              Show this help message"
+    echo "  -u, --gateway-url URL   MCP Gateway URL (default: $DEFAULT_GATEWAY_URL)"
+    echo ""
+    echo "ARGUMENTS:"
+    echo "  GATEWAY_URL             MCP Gateway URL (alternative to --gateway-url)"
+    echo ""
+    echo "ENVIRONMENT VARIABLES:"
+    echo "  GATEWAY_URL             MCP Gateway URL (lowest priority)"
+    echo ""
+    echo "EXAMPLES:"
+    echo "  $0                                          # Use default URL"
+    echo "  $0 http://my-gateway:8000                   # Use positional argument"
+    echo "  $0 --gateway-url http://my-gateway:8000     # Use named option"
+    echo "  GATEWAY_URL=http://my-gateway:8000 $0       # Use environment variable"
+    echo ""
+}
+
+# Function to validate URL format
+validate_url() {
+    local url=$1
+    if [[ ! $url =~ ^https?:// ]]; then
+        print_error "Invalid URL format: $url"
+        print_error "URL must start with http:// or https://"
+        return 1
+    fi
+    return 0
+}
+
+# Function to parse command line arguments
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            -u|--gateway-url)
+                if [[ -n $2 && $2 != -* ]]; then
+                    GATEWAY_URL="$2"
+                    shift 2
+                else
+                    print_error "Option $1 requires a URL argument"
+                    show_usage
+                    exit 1
+                fi
+                ;;
+            -*)
+                print_error "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+            *)
+                # Positional argument - assume it's the gateway URL
+                if [[ -z $GATEWAY_URL ]]; then
+                    GATEWAY_URL="$1"
+                else
+                    print_error "Multiple gateway URLs provided"
+                    show_usage
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
+}
+
+# Function to determine gateway URL with priority order
+determine_gateway_url() {
+    # Priority: Command line argument > Environment variable > Default
+    if [[ -z $GATEWAY_URL ]]; then
+        GATEWAY_URL="${GATEWAY_URL:-$DEFAULT_GATEWAY_URL}"
+    fi
+    
+    # Validate URL format
+    if ! validate_url "$GATEWAY_URL"; then
+        exit 1
+    fi
+    
+    print_status "Using MCP Gateway URL: $GATEWAY_URL"
 }
 
 # Function to deploy an MCP server
@@ -71,6 +159,12 @@ main() {
     echo "==================================="
     echo "Official MCP Servers Deployment"
     echo "==================================="
+    
+    # Parse command line arguments
+    parse_arguments "$@"
+    
+    # Determine the gateway URL to use
+    determine_gateway_url
     
     check_gateway
     
@@ -136,5 +230,5 @@ main() {
     echo '}'
 }
 
-# Run the main function
+# Run the main function with all arguments
 main "$@"
