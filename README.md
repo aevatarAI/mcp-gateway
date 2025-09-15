@@ -167,7 +167,77 @@ kubectl port-forward -n adapter svc/mcpgateway-service 8000:8000
   - `http://localhost:8000/adapters/{name}/mcp` (Streamable HTTP)  
   - `http://localhost:8000/adapters/{name}/sse` (SSE)
 
-### 9. Clean the Environment  
+### 9. Deploy Official MCP Servers
+Instead of building custom MCP servers, you can deploy official pre-built MCP servers that are available as Docker images. These servers provide various capabilities like file operations, web fetching, git operations, time utilities, knowledge graph memory, and sequential thinking.
+
+#### Available Official MCP Servers
+- **mcp/time** - Time-related tools and utilities
+- **mcp/fetch** - HTTP requests and web scraping capabilities  
+- **mcp/filesystem** - File system operations
+- **mcp/git** - Git repository operations
+- **mcp/memory** - Knowledge graph memory server for persistent information storage
+- **mcp/sequentialthinking** - Structured thinking capabilities
+
+#### Deploy All Official Servers
+Use the provided script to deploy all official MCP servers at once:
+
+```sh
+deployment/aevatar/deploy-official-mcp-servers.sh
+```
+
+#### Deploy Individual Servers
+You can also deploy individual servers using the MCP Gateway API:
+
+```http
+POST http://localhost:8000/adapters
+Content-Type: application/json
+
+{
+  "name": "time",
+  "imageName": "mcp/time",
+  "imageVersion": "latest",
+  "description": "Official MCP Time Server"
+}
+```
+
+#### Access the Deployed Servers
+Once deployed, you can access these servers through the gateway:
+- Time Server: `http://localhost:8000/adapters/time/mcp`
+- Fetch Server: `http://localhost:8000/adapters/fetch/mcp`
+- Filesystem Server: `http://localhost:8000/adapters/filesystem/mcp`
+- Git Server: `http://localhost:8000/adapters/git/mcp`
+- Memory Server: `http://localhost:8000/adapters/memory/mcp`
+- Sequential Thinking: `http://localhost:8000/adapters/sequentialthinking/mcp`
+
+#### Example VS Code Configuration
+Create a `.vscode/mcp.json` file to use these servers in VS Code:
+
+```json
+{
+  "servers": {
+    "time": {
+      "url": "http://localhost:8000/adapters/time/mcp"
+    },
+    "fetch": {
+      "url": "http://localhost:8000/adapters/fetch/mcp"
+    },
+    "filesystem": {
+      "url": "http://localhost:8000/adapters/filesystem/mcp"
+    },
+    "git": {
+      "url": "http://localhost:8000/adapters/git/mcp"
+    },
+    "memory": {
+      "url": "http://localhost:8000/adapters/memory/mcp"
+    },
+    "sequentialthinking": {
+      "url": "http://localhost:8000/adapters/sequentialthinking/mcp"
+    }
+  }
+}
+```
+
+### 10. Clean the Environment  
    To remove all deployed resources, delete the Kubernetes namespace:
    ```sh
    kubectl delete namespace adapter

@@ -11,6 +11,24 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.McpGateway.Servic
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Microsoft.McpGateway.Service.Tests", "Microsoft.McpGateway.Service\test\Microsoft.McpGateway.Service.Tests.csproj", "{B4F1001F-DB13-3433-BA1E-80C8AF0801C9}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "deployment", "deployment", "{050F1B3E-A2F8-4F11-8D26-76757E6B6BFE}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "infra", "infra", "{9CFC5F24-5DE3-433B-AD43-D469F75CB257}"
+	ProjectSection(SolutionItems) = preProject
+		..\deployment\infra\azure-deployment.bicep = ..\deployment\infra\azure-deployment.bicep
+		..\deployment\infra\azure-deployment.json = ..\deployment\infra\azure-deployment.json
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "k8s", "k8s", "{68F475AE-6100-4005-979D-BB74DF2123E8}"
+	ProjectSection(SolutionItems) = preProject
+		..\deployment\k8s\cloud-deployment-template.yml = ..\deployment\k8s\cloud-deployment-template.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "aevatar", "aevatar", "{0CB16147-0C5A-46D5-A6BB-A355F5A410EA}"
+	ProjectSection(SolutionItems) = preProject
+		..\deployment\aevatar\deploy-official-mcp-servers.sh = ..\deployment\aevatar\deploy-official-mcp-servers.sh
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -39,5 +57,10 @@ Global
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FB8F08D8-DA21-401D-9BEE-0B1F317B3AE0}
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{9CFC5F24-5DE3-433B-AD43-D469F75CB257} = {050F1B3E-A2F8-4F11-8D26-76757E6B6BFE}
+		{68F475AE-6100-4005-979D-BB74DF2123E8} = {050F1B3E-A2F8-4F11-8D26-76757E6B6BFE}
+		{0CB16147-0C5A-46D5-A6BB-A355F5A410EA} = {050F1B3E-A2F8-4F11-8D26-76757E6B6BFE}
 	EndGlobalSection
 EndGlobal
