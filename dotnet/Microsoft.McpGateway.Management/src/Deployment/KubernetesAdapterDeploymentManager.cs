@@ -33,7 +33,7 @@ namespace Microsoft.McpGateway.Management.Deployment
             _kubeClient = kubeClient ?? throw new ArgumentNullException(nameof(kubeClient));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            ArgumentException.ThrowIfNullOrEmpty(containerRegistrySettings.Endpoint);
+            //ArgumentException.ThrowIfNullOrEmpty(containerRegistrySettings.Endpoint);
             ArgumentException.ThrowIfNullOrEmpty(kubernetesSettings.Namespace);
         }
 
@@ -44,6 +44,10 @@ namespace Microsoft.McpGateway.Management.Deployment
                 { $"{_kubernetesSettings.LabelPrefix}/type", "mcp" },
                 { $"{_kubernetesSettings.LabelPrefix}/name", request.Name }
             };
+
+            var image = _containerRegistrySettings.Endpoint == string.Empty
+                ? $"{request.ImageName}:{request.ImageVersion}"
+                : $"{_containerRegistrySettings.Endpoint}/{request.ImageName}:{request.ImageVersion}";
 
             var statefulSet = new V1StatefulSet
             {
@@ -68,7 +72,7 @@ namespace Microsoft.McpGateway.Management.Deployment
                                 new()
                                 {
                                     Name = $"{request.Name}-container",
-                                    Image = $"{_containerRegistrySettings.Endpoint}/{request.ImageName}:{request.ImageVersion}",
+                                    Image = image,
                                     ImagePullPolicy = _containerRegistrySettings.ImagePullPolicy,
                                     Env = [.. request.EnvironmentVariables?.Select(x => new V1EnvVar{ Name = x.Key, Value = x.Value }) ?? []],
                                     Ports =
@@ -153,6 +157,9 @@ namespace Microsoft.McpGateway.Management.Deployment
         public async Task UpdateDeploymentAsync(AdapterData request, CancellationToken cancellationToken)
         {
             var statefulSet = await _kubeClient.ReadStatefulSetAsync(request.Name, _kubernetesSettings.Namespace, cancellationToken).ConfigureAwait(false);
+            var image = _containerRegistrySettings.Endpoint == string.Empty
+                ? $"{request.ImageName}:{request.ImageVersion}"
+                : $"{_containerRegistrySettings.Endpoint}/{request.ImageName}:{request.ImageVersion}";
             var patch = new
             {
                 spec = new
@@ -167,7 +174,7 @@ namespace Microsoft.McpGateway.Management.Deployment
                                 new
                                 {
                                     name = $"{request.Name}-container",
-                                    image = $"{_containerRegistrySettings.Endpoint}/{request.ImageName}:{request.ImageVersion}",
+                                    image = image,
                                     env = request.EnvironmentVariables.Select(x => new V1EnvVar{ Name = x.Key, Value = x.Value }).ToArray(),
                                 }
                             }
