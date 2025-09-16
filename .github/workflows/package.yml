@@ -47,7 +47,7 @@ jobs:
       # Restore dependencies (separate step, uses matrix.servicename path)
       - name: Restore dependencies
         run: |
-          dotnet restore dotnet/${{ matrix.servicename }}.sln
+          dotnet restore dotnet/Microsoft.McpGateway.sln
 
       # Publish .NET project
       - name: Publish .NET project      
