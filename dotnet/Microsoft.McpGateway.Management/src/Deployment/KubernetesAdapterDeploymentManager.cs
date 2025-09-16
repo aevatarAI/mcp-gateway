@@ -42,7 +42,8 @@ namespace Microsoft.McpGateway.Management.Deployment
             var labels = new Dictionary<string, string>
             {
                 { $"{_kubernetesSettings.LabelPrefix}/type", "mcp" },
-                { $"{_kubernetesSettings.LabelPrefix}/name", request.Name }
+                { $"{_kubernetesSettings.LabelPrefix}/name", request.Name },
+                { "azure.workload.identity/use", request.UseWorkloadIdentity.ToString().ToLowerInvariant() }
             };
 
             var image = _containerRegistrySettings.Endpoint == string.Empty
@@ -62,6 +63,7 @@ namespace Microsoft.McpGateway.Management.Deployment
                         Metadata = new V1ObjectMeta { Labels = labels },
                         Spec = new V1PodSpec
                         {
+                            ServiceAccountName = "workload-sa",
                             SecurityContext = new V1PodSecurityContext
                             {
                                 RunAsUser = _kubernetesSettings.SecurityContext.RunAsUser,
