@@ -16,6 +16,11 @@ namespace Microsoft.McpGateway.Management.Configuration
         public string LabelPrefix { get; set; } = "adapter";
 
         /// <summary>
+        /// Service account name for adapter pods
+        /// </summary>
+        public string ServiceAccountName { get; set; } = "workload-sa";
+
+        /// <summary>
         /// Security context settings for pods
         /// </summary>
         public SecurityContextSettings SecurityContext { get; set; } = new();

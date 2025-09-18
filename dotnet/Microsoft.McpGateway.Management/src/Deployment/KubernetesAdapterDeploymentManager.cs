@@ -63,7 +63,7 @@ namespace Microsoft.McpGateway.Management.Deployment
                         Metadata = new V1ObjectMeta { Labels = labels },
                         Spec = new V1PodSpec
                         {
-                            ServiceAccountName = "workload-sa",
+                            ServiceAccountName = _kubernetesSettings.ServiceAccountName,
                             SecurityContext = new V1PodSecurityContext
                             {
                                 RunAsUser = _kubernetesSettings.SecurityContext.RunAsUser,
