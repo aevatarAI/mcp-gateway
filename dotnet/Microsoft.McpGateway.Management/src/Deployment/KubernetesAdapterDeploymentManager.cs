@@ -64,11 +64,11 @@ namespace Microsoft.McpGateway.Management.Deployment
                         Spec = new V1PodSpec
                         {
                             ServiceAccountName = _kubernetesSettings.ServiceAccountName,
-                            SecurityContext = new V1PodSecurityContext
-                            {
-                                RunAsUser = _kubernetesSettings.SecurityContext.RunAsUser,
-                                RunAsGroup = _kubernetesSettings.SecurityContext.RunAsGroup
-                            },
+                            // SecurityContext = new V1PodSecurityContext
+                            // {
+                            //     RunAsUser = _kubernetesSettings.SecurityContext.RunAsUser,
+                            //     RunAsGroup = _kubernetesSettings.SecurityContext.RunAsGroup
+                            // },
                             Containers =
                             [
                                 new()

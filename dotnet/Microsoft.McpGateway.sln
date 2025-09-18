@@ -22,6 +22,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "k8s", "k8s", "{68F475AE-6100-4005-979D-BB74DF2123E8}"
 	ProjectSection(SolutionItems) = preProject
 		..\deployment\k8s\cloud-deployment-template.yml = ..\deployment\k8s\cloud-deployment-template.yml
+		..\deployment\k8s\local-deployment.yml = ..\deployment\k8s\local-deployment.yml
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "aevatar", "aevatar", "{0CB16147-0C5A-46D5-A6BB-A355F5A410EA}"

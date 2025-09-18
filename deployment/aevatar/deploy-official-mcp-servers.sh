@@ -172,22 +172,22 @@ main() {
     print_status "Starting deployment of official MCP servers..."
     
     # Time Server
-    deploy_mcp_server "time" "mcp/time" "latest" "Official MCP Time Server - provides time-related tools and utilities"
+    deploy_mcp_server "time" "$REGISTRY/mcp/time" "latest" "Official MCP Time Server - provides time-related tools and utilities"
     
     # Fetch Server
-    deploy_mcp_server "fetch" "mcp/fetch" "latest" "Official MCP Fetch Server - provides HTTP request and web scraping capabilities"
+    deploy_mcp_server "fetch" "$REGISTRY/mcp/fetch" "latest" "Official MCP Fetch Server - provides HTTP request and web scraping capabilities"
     
     # Filesystem Server
-    deploy_mcp_server "filesystem" "mcp/filesystem" "latest" "Official MCP Filesystem Server - provides file system operations"
+    deploy_mcp_server "filesystem" "$REGISTRY/mcp/filesystem" "latest" "Official MCP Filesystem Server - provides file system operations"
     
     # Git Server
-    deploy_mcp_server "git" "mcp/git" "latest" "Official MCP Git Server - provides git repository operations"
+    deploy_mcp_server "git" "$REGISTRY/mcp/git" "latest" "Official MCP Git Server - provides git repository operations"
     
     # Memory Server
-    deploy_mcp_server "memory" "mcp/memory" "latest" "Official MCP Memory Server - knowledge graph memory server for persistent information storage"
+    deploy_mcp_server "memory" "$REGISTRY/mcp/memory" "latest" "Official MCP Memory Server - knowledge graph memory server for persistent information storage"
     
     # Sequential Thinking Server
-    deploy_mcp_server "sequentialthinking" "mcp/sequentialthinking" "latest" "Official MCP Sequential Thinking Server - provides structured thinking capabilities"
+    deploy_mcp_server "sequentialthinking" "$REGISTRY/mcp/sequentialthinking" "latest" "Official MCP Sequential Thinking Server - provides structured thinking capabilities"
     
     echo ""
     print_status "All MCP servers deployed successfully!"
