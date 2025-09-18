@@ -21,6 +21,9 @@ var credential = new DefaultAzureCredential();
 builder.Services.AddApplicationInsightsTelemetry();
 builder.Services.AddLogging();
 
+// Configure KubernetesSettings
+builder.Services.Configure<KubernetesSettings>(builder.Configuration.GetSection("KubernetesSettings"));
+
 builder.Services.AddSingleton<IKubernetesClientFactory, LocalKubernetesClientFactory>();
 builder.Services.AddSingleton<IAdapterSessionStore, DistributedMemorySessionStore>();
 builder.Services.AddSingleton<IServiceNodeInfoProvider, AdapterKubernetesNodeInfoProvider>();

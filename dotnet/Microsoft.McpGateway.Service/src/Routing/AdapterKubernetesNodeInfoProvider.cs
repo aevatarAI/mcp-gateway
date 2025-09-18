@@ -4,17 +4,19 @@
 using System.Collections.Concurrent;
 using k8s;
 using k8s.Models;
+using Microsoft.Extensions.Options;
+using Microsoft.McpGateway.Management.Configuration;
 using Microsoft.McpGateway.Management.Deployment;
 
 namespace Microsoft.McpGateway.Service.Routing
 {
     public class AdapterKubernetesNodeInfoProvider : IServiceNodeInfoProvider
     {
-        private const string AdapterNamespace = "adapter";
-        private const string AdapterLabel = "adapter/type=mcp";
         private const string RunningField = "status.phase=Running";
         private const int AdapterListenerPort = 8000;
 
+        private readonly string _adapterNamespace;
+        private readonly string _adapterLabel;
         private readonly ConcurrentDictionary<string, string[]> _healthyPodsByStatefulSet = new();
         private readonly IKubernetesClientFactory _kubeClientFactory;
         private readonly ILogger<AdapterKubernetesNodeInfoProvider> _logger;
@@ -22,14 +24,20 @@ namespace Microsoft.McpGateway.Service.Routing
         private readonly TaskCompletionSource<bool> _initialFetchCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private bool _disposed = false;
 
-        public AdapterKubernetesNodeInfoProvider(IKubernetesClientFactory kubeClientFactory, ILogger<AdapterKubernetesNodeInfoProvider> logger)
+        public AdapterKubernetesNodeInfoProvider(
+            IKubernetesClientFactory kubeClientFactory, 
+            IOptions<KubernetesSettings> kubernetesSettings,
+            ILogger<AdapterKubernetesNodeInfoProvider> logger)
         {
             _kubeClientFactory = kubeClientFactory ?? throw new ArgumentNullException(nameof(kubeClientFactory));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            
+            var settings = kubernetesSettings?.Value ?? throw new ArgumentNullException(nameof(kubernetesSettings));
+            _adapterNamespace = settings.Namespace;
+            _adapterLabel = $"{settings.LabelPrefix}/type=mcp";
 
             FetchPodAddressInfo();
         }
-
 
         public async Task<IDictionary<string, string>> GetNodeAddressesAsync(string adapterName, CancellationToken cancellationToken)
         {
@@ -37,7 +45,7 @@ namespace Microsoft.McpGateway.Service.Routing
 
             var healthyPods = GetHealthyPods(adapterName).ToDictionary(
                 p => p,
-                p => $"http://{p}.{adapterName}-service.{AdapterNamespace}.svc.cluster.local:{AdapterListenerPort}");
+                p => $"http://{p}.{adapterName}-service.{_adapterNamespace}.svc.cluster.local:{AdapterListenerPort}");
 
             return healthyPods;
         }
@@ -59,8 +67,8 @@ namespace Microsoft.McpGateway.Service.Routing
                     try
                     {
                         var pods = await kubeClient.CoreV1.ListNamespacedPodAsync(
-                            namespaceParameter: AdapterNamespace,
-                            labelSelector: AdapterLabel,
+                            namespaceParameter: _adapterNamespace,
+                            labelSelector: _adapterLabel,
                             fieldSelector: RunningField,
                             cancellationToken: cancellationToken).ConfigureAwait(false);
 
@@ -93,8 +101,8 @@ namespace Microsoft.McpGateway.Service.Routing
 
                         // Start the watcher to monitor pod events.
                         var podsResponse = await kubeClient.CoreV1.ListNamespacedPodWithHttpMessagesAsync(
-                            namespaceParameter: AdapterNamespace,
-                            labelSelector: AdapterLabel,
+                            namespaceParameter: _adapterNamespace,
+                            labelSelector: _adapterLabel,
                             fieldSelector: RunningField,
                             resourceVersion: pods.Metadata?.ResourceVersion,
                             watch: true,
