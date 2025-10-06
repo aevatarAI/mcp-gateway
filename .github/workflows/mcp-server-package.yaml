@@ -1,0 +1,129 @@
+name: Build and Push MCP Server
+
+on:
+  workflow_dispatch:
+    inputs:
+      service:
+        description: "Service to build"
+        required: true
+        type: choice
+        default: "mcp-proxy-server"
+        options:
+          - All
+          - mcp-proxy-server
+          - mcp-example-server
+      version:
+        description: "Version tag for the MCP Proxy Server image"
+        required: true
+        default: "v1.0.0"
+
+jobs:
+  set-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      # ---------------------------------------------------------
+      # Set Matrix
+      # ---------------------------------------------------------
+      - name: Generate matrix
+        id: set-matrix
+        run: |
+          service="${{ github.event.inputs.service }}"
+          if [[ "$service" == "all" ]]; then
+            matrix=$(jq -c -n '["mcp-proxy-server","mcp-example-server"]')
+          elif [[ "$service" == "mcp-proxy-server" ]]; then
+            matrix=$(jq -c -n '["mcp-proxy-server"]')
+          elif [[ "$service" == "mcp-example-server" ]]; then
+            matrix=$(jq -c -n '["mcp-example-server"]')
+          else
+            echo "Unknown service: $service"
+            exit 1
+          fi
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    name: Build and Push Docker Image
+    needs: set-matrix
+    runs-on: aismart-runner
+    strategy:
+      matrix:
+        servicename: ${{ fromJSON(needs.set-matrix.outputs.matrix) }}
+      fail-fast: false
+    permissions:
+      contents: read
+    steps:
+      # ---------------------------------------------------------
+      # Checkout source code (used as Docker build context)
+      # ---------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------
+      # Set up Docker buildx for multi-platform builds
+      # ---------------------------------------------------------
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: v0.27.0
+
+      # ---------------------------------------------------------
+      # Generate image tag metadata (dynamic tagging)
+      # ---------------------------------------------------------
+      - name: Create image tag
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.REPOSITORY_REGION }}-docker.pkg.dev/${{ secrets.PROJECT_ID }}/${{ secrets.REPOSITORY }}/${{ matrix.servicename }}
+          tags: |
+              type=raw,value=${{ github.event.inputs.version }}
+
+      # ---------------------------------------------------------
+      # Build and push Docker image to GAR
+      # ---------------------------------------------------------
+      - name: Build and push MCP Proxy Server image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.servicename }}
+          file: ./${{ matrix.servicename }}/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---------------------------------------------------------
+      # Install Cosign CLI for signing
+      # ---------------------------------------------------------
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.5.0
+
+      # ---------------------------------------------------------
+      # Install Crane for digest lookup
+      # ---------------------------------------------------------
+      - name: Install Crane (for digest lookup)
+        run: |
+          curl -sSL https://github.com/google/go-containerregistry/releases/latest/download/go-containerregistry_Linux_x86_64.tar.gz -o crane.tar.gz
+          sudo tar -xzvf crane.tar.gz -C /usr/local/bin crane
+
+      # ---------------------------------------------------------
+      # Extract image digest from registry
+      # ---------------------------------------------------------
+      - name: Extract image digest
+        id: digest
+        run: |
+          TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          DIGEST=$(crane digest "$TAG")
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      # ---------------------------------------------------------
+      # Sign image digest using Cosign
+      # ---------------------------------------------------------
+      - name: Cosign sign image
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        run: |
+          TAG=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          cosign sign "$TAG@${{ steps.digest.outputs.digest }}"
