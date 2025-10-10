@@ -40,7 +40,13 @@ COPY . .
 
 # Change ownership to non-root user
 RUN chown -R mcpuser:mcpuser /app \
+    && mkdir -p /home/mcpuser/.npm \
     && chown -R mcpuser:mcpuser /home/mcpuser
+
+ENV HOME=/home/mcpuser
+
+# Switch to non-root user
+USER 1100
 
 # Switch to non-root user
 USER 1100
